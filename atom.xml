@@ -5,7 +5,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="http://yoursite.com/"/>
-  <updated>2016-10-07T06:38:29.000Z</updated>
+  <updated>2016-10-07T07:46:42.000Z</updated>
   <id>http://yoursite.com/</id>
   
   <author>
@@ -20,13 +20,13 @@
     <link href="http://yoursite.com/2016/10/05/RL-for-seq2seq/"/>
     <id>http://yoursite.com/2016/10/05/RL-for-seq2seq/</id>
     <published>2016-10-05T07:20:09.000Z</published>
-    <updated>2016-10-07T06:38:29.000Z</updated>
+    <updated>2016-10-07T07:46:42.000Z</updated>
     
     <content type="html"><![CDATA[<p><script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=default"></script></p>
 <h1 id="Sequence级别的seq2seq训练过程，用强化学习来优化整个句子效果"><a href="#Sequence级别的seq2seq训练过程，用强化学习来优化整个句子效果" class="headerlink" title="Sequence级别的seq2seq训练过程，用强化学习来优化整个句子效果"></a>Sequence级别的seq2seq训练过程，用强化学习来优化整个句子效果</h1><p><a href="http://arxiv.org/abs/1511.06732" target="_blank" rel="external">原论文连接</a></p>
 <h3 id="Summary"><a href="#Summary" class="headerlink" title="Summary"></a>Summary</h3><p>最近突然想把自己看过的东西记下来，决定开通博客啦，就以这篇seq2seq领域的论文开始吧。</p>
 <p>先简单介绍一下seq2seq是什么。<br>processing of seq2seq：<br><img src="https://www.tensorflow.org/versions/r0.11/images/basic_seq2seq.png" alt=""><br>借用一下tensorflow里Sequence-to-Sequence的图。这个任务的目标简单的说就是将一个序列翻译成另一序列。</p>
-<p>具体到这张图里我们的输入是有序的A,B,C序列，目标序列是输出X,Y,Z。其中每一个白色的方框是RNN的一个Cell，输入部分和输出部分的RNN分别共享两套参数。整个过程可看做将输入的A,B,C通过输入RNN编码为一个Cell code，输出部分根据上一时态的输入以及Cell状态预估下一个输出词的概率分布即$$P(w_{t+1}^g|h_{t+1},w_t)$$<br>根据此概率分布找出最适合的输出，可抽象为一个encode之后decode的过程。</p>
+<p>具体到这张图里我们的输入是有序的A,B,C序列，目标序列是输出X,Y,Z。其中每一个白色的方框是RNN的一个Cell，输入部分和输出部分的RNN分别共享两套参数。整个过程可看做将输入的A,B,C通过输入RNN编码为一个Cell code，输出部分根据上一时态的输入以及Cell状态预估下一个输出词的概率分布即\(P(w_{t+1}^g|h_{t+1},w_t)\)根据此概率分布找出最适合的输出，可抽象为一个encode之后decode的过程。</p>
 <p>此类过程可以做很多工作，比如机器翻译讲英文翻译为中文，摘要抽取将长文转换为单字信息量更大的短文，或者是人机对话的QA问答都可以抽象成类似的过程。</p>
 <h3 id="Motivation"><a href="#Motivation" class="headerlink" title="Motivation"></a>Motivation</h3><p>回到这篇论文来看，它主要目标是试图解决seq2seq领域的两个重要问题：</p>
 <ul>
@@ -49,8 +49,10 @@
 <li>reward: 整个后续sequence解码完后的bleu等指标</li>
 </ul>
 <p>这里需要强调一点，reward是整个sequence解码完的指标，所以作者题目是sequence级别的训练，不是word级别，此文的目标也是优化最后整个生产sequence的效果。</p>
-<p>因此作者将Reinforce Loss函数定义为整个生成出的sequence拿到的负reward:<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475740434191.png" alt=""><br>对参数\(\theta\)求导:<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475740913152.png" alt=""><br>其中\(O_t\)是softmax的输入。<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475740768186.png" alt=""><br>这个公式的推导可以去看另一篇用RL的文章 <a href="https://arxiv.org/abs/1505.00521" target="_blank" rel="external">https://arxiv.org/abs/1505.00521</a><br>需要注意的是 这个导数的右半部分其实就是交叉熵Loss(XENT指在decode部分输入为ground truth的训练方式)的求导结果:<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475741346812.png" alt=""><br>稍微解释一下，这个地方是对softmax的输入求导其实就和一个多分类的逻辑回归一样，对于每一个类别的预测值的梯度就是每一个类别的预测值和真实的标签之间的差值。<br>而左半部分是整个被生成序列的reward减去t时刻状态\(S_t\)下所能得到的平均reward，这是强化学习比较常见的一个公式。<br>这个推导结果的物理意义可以很直观的解释，即在t+1时刻右端交叉熵Loss的限制下，左端要求我们选择被生成的词最后构成的reward $$r(w_1^g,...,w_T^g)$$要大于在t+1时刻时态的一个可获得的平均reward $${\bar{r}}_{t+1}$$。</p>
-<p>前面提到是sequence级别的训练，所以最终每个时刻的loss要整个sequence全decode后才能得到，而目前我们唯一不知道的量就是reward  $${\bar{r}}_{t+1}$$ 。在其他场景下，这个值可以用随机的生成结果来采样取得，本文作者用了非常简单的线性回归来预估这个值，输入为当前RNN模型的所有隐层节点状态，Loss为与真值reward二范数距离:\({||\bar{r}-r||}^2\)。</p>
+<p>因此作者将Reinforce Loss函数定义为整个生成出的sequence拿到的负reward:<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475740434191.png" alt=""><br>对参数\(\theta\)求导:<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475740913152.png" alt=""><br>其中\(O_t\)是softmax的输入。<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475740768186.png" alt=""><br>这个公式的推导可以去看另一篇用RL的文章 <a href="https://arxiv.org/abs/1505.00521" target="_blank" rel="external">https://arxiv.org/abs/1505.00521</a><br>需要注意的是 这个导数的右半部分其实就是交叉熵Loss(XENT指在decode部分输入为ground truth的训练方式)的求导结果:<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475741346812.png" alt=""><br>稍微解释一下，这个地方是对softmax的输入求导其实就和一个多分类的逻辑回归一样，对于每一个类别的预测值的梯度就是每一个类别的预测值和真实的标签之间的差值。</p>
+<p>而左半部分是整个被生成序列的reward减去t时刻状态\(S_t\)下所能得到的平均reward，这是强化学习比较常见的一个公式。这个推导结果的物理意义可以很直观的解释，即在t+1时刻右端交叉熵Loss的限制下，左端要求我们选择被生成的词最后构成的reward \(r(w_1^g,…,w_T^g)\) 要大于在t+1时刻时态的一个可获得的平均reward \({\bar{r}}_{t+1}\)。</p>
+<p><script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=default"></script><br>这里稍做解释不然有些绕，原论文在此解释得并不够清晰，我们注意到这里一直是对softmax的输入\(o_t\)求导，这个公式代表我们在选择\(w_{t+1}^g\)时如果整体Reword &lt; t时刻预估的平均reward我们就不鼓励它被选择，如果大于平均reward我们就鼓励它。为什么呢？请注意导数的右端部分，这里我们其实只关心\(w_{t+1}^g\)这个词，因为整体的reward在这里只和被模型生成的词有关，和那些没被选择出来的词无关，所以右端部分在\(w_{t+1}^g\)这一维必然&lt;0。那么左端部分大于0表示softmax部分的代表\(w_{t+1}^g\)的那一维会被减去一个负值(梯度下降法)，所以\(w_{t+1}^g\)被选的概率会提高(其他候选词如果没被放入后面计算BLEU 连reward都没有)即鼓励选择\(w_{t+1}^g\)，同理如果左端reward部分小于0，就是不鼓励选择\(w_{t+1}^g\)。</p>
+<p>前面提到是sequence级别的训练，所以最终每个时刻的loss要整个sequence全decode后才能得到，而目前我们唯一不知道的量就是reward \({\bar{r}}_{t+1}\)。在其他场景下，这个值可以用随机的生成结果来采样取得，本文作者用了非常简单的线性回归来预估这个值，输入为当前RNN模型的所有隐层节点状态，Loss为与真值reward二范数距离:\({||\bar{r}-r||}^2\)。</p>
 <h3 id="训练过程"><a href="#训练过程" class="headerlink" title="训练过程"></a>训练过程</h3><p>偷个懒直接截原文图再来解释整个过程:<br><img src="http://7xp3xc.com1.z0.glb.clouddn.com/201601/1475742637703.png" alt=""></p>
 <p>这里面\(N^{XENT}\)和\(N^{XE+R}\)分别是两个可调的超参，分别代表两个训练过程的训练次数，XENT代表传统的交叉熵Loss训练并且decode时每一个时刻的输入为ground truth \(w_t\), XE+R代表的是Loss为前文提到的Reinforce Loss，T代表的是decode部分sequence长度，decode部分每一个时刻的输入为模型预测生成的输出\(w_t^g\)。</p>
 <p>整个过程其实就分为两部分，一开始先训练\(N^{XENT}\)个epoch 用传统的XENT训练方式，之后呢在每一个sequence训练的decode部分，前s个step 用XENT交叉熵loss，后T-s个时态用Reinforce Loss训练。然后不断的将s从T开始减少，最后整个sequence都用Reinforce Loss。</p>
